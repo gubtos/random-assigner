@@ -168,6 +168,58 @@
             opacity: 1;
             transform: translateY(0);
         }
+        
+        /* Task Stats Column Styling */
+        .task-stats-column {
+            border-left: 5px solid #673ab7;
+            background: linear-gradient(to bottom, #fff 0%, #f8f2ff 100%);
+        }
+        
+        /* Task stats table styling */
+        .task-stats-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            background: linear-gradient(145deg, #ffffff, #f8f8f8);
+            border-radius: 12px;
+            padding: 15px;
+            box-shadow: 8px 8px 16px #d1d9e6, -8px -8px 16px #ffffff;
+            overflow: hidden;
+        }
+        
+        .task-stats-table th {
+            background: rgba(103, 58, 183, 0.1);
+            padding: 12px 15px;
+            text-align: left;
+            font-weight: 600;
+            color: #673ab7;
+            border-bottom: 2px solid #673ab7;
+        }
+        
+        .task-stats-table td {
+            padding: 10px 15px;
+            border-bottom: 1px solid #eaeaea;
+        }
+        
+        .task-stats-table tr:last-child td {
+            border-bottom: none;
+        }
+        
+        .task-stats-table tr:hover {
+            background-color: rgba(103, 58, 183, 0.05);
+        }
+        
+        .task-stats-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .task-stats-header h3 {
+            margin: 0;
+            color: #673ab7;
+        }
 
         /* Section Headers */
         .section-header {
@@ -1008,6 +1060,28 @@
             align-items: center;
             gap: 10px;
         }
+
+        /* Add styling for task stats percentage bars */
+        .stat-bar-container {
+            flex-grow: 1;
+            height: 8px;
+            background-color: #eaeaea;
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .stat-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #4285f4, #34a853);
+            border-radius: 4px;
+            transition: width 0.3s ease-in-out;
+        }
+
+        .stat-percentage {
+            font-size: 0.9em;
+            color: #555;
+        }
     </style>
 </head>
 
@@ -1043,10 +1117,34 @@
 
             <div class="section-header">
                 <h2>{{ t('operations') }}</h2>
-                <button class="collapse-btn" @click="toggleCollapse('operations')"
-                    :title="collapsed.operations ? t('expand') : t('collapse')">
-                    <i :class="collapsed.operations ? 'fas fa-expand' : 'fas fa-compress'"></i>
-                </button>
+                <div style="display: flex; gap: 10px;">
+                    <!-- Download Config Button -->
+                    <button @click="downloadConfig" class="copy-button" :title="t('downloadConfig') || 'Download configuration'"
+                        style="background: linear-gradient(145deg, #fbbc05, #e6a800);">
+                        <i class="fas fa-file-download"></i>
+                    </button>
+                    
+                    <!-- Load Config Button -->
+                    <button @click="triggerFileInput" class="copy-button" :title="t('loadConfig') || 'Load configuration'"
+                        style="background: linear-gradient(145deg, #4285f4, #3b77db);">
+                        <i class="fas fa-file-upload"></i>
+                    </button>
+                    
+                    <!-- Hidden file input for config upload -->
+                    <input 
+                        type="file" 
+                        id="configFileInput" 
+                        ref="configFileInput"
+                        @change="handleConfigFileUpload" 
+                        accept=".txt"
+                        style="display: none;"
+                    >
+                    
+                    <button class="collapse-btn" @click="toggleCollapse('operations')"
+                        :title="collapsed.operations ? t('expand') : t('collapse')">
+                        <i :class="collapsed.operations ? 'fas fa-expand' : 'fas fa-compress'"></i>
+                    </button>
+                </div>
             </div>
             <div class="section-content">
                 <div class="functions-container">
@@ -1125,6 +1223,10 @@
                         style="background: linear-gradient(145deg, #34a853, #2d9144);">
                         <i class="fas fa-copy"></i>
                     </button>
+                    <button @click="downloadCSV" class="copy-button" :title="t('downloadCSV')"
+                        style="background: linear-gradient(145deg, #fbbc05, #e6a800);">
+                        <i class="fas fa-file-csv"></i>
+                    </button>
                     <button class="collapse-btn" @click="toggleCollapse('designations')"
                         :title="collapsed.designations ? t('expand') : t('collapse')">
                         <i :class="collapsed.designations ? 'fas fa-expand' : 'fas fa-compress'"></i>
@@ -1174,6 +1276,46 @@
                 </div>
             </div>
         </div>
+        
+        <!-- Section 5: Task Stats -->
+        <div class="column task-stats-column" :class="{ 'collapsed': collapsed.taskStats }">
+            <div class="section-header">
+                <h2>{{ t('taskStats') }}</h2>
+                <button class="collapse-btn" @click="toggleCollapse('taskStats')"
+                    :title="collapsed.taskStats ? t('expand') : t('collapse')">
+                    <i :class="collapsed.taskStats ? 'fas fa-expand' : 'fas fa-compress'"></i>
+                </button>
+            </div>
+            <div class="section-content">
+                <div v-for="(task, index) in taskAssignmentStats" :key="index" class="task-stats-container">
+                    <div class="task-stats-header">
+                        <h3>{{ task.name }}</h3>
+                    </div>
+                    <table class="task-stats-table">
+                        <thead>
+                            <tr>
+                                <th>{{ t('personName') }}</th>
+                                <th>{{ t('assignmentCount') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="(count, person) in task.stats" :key="person">
+                                <td>{{ person }}</td>
+                                <td>
+                                    <div style="display: flex; align-items: center; gap: 10px;">
+                                        <span>{{ count }}</span>
+                                        <div class="stat-bar-container">
+                                            <div class="stat-bar" :style="{ width: calculateTaskStatWidth(count, task) + '%' }"></div>
+                                        </div>
+                                        <span class="stat-percentage">{{ calculateTaskStatPercentage(count, task) }}%</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -1217,7 +1359,8 @@
                     forms: false,
                     designations: false,
                     counter: false,
-                    operations: false
+                    operations: false,
+                    taskStats: false
                 },
                 userLanguage: 'auto', // 'auto' for browser detection or specific language code
                 translations: {
@@ -1243,6 +1386,9 @@
                         configurations: 'Settings',
                         assignments: 'Schedule',
                         counter: 'Distribution',
+                        taskStats: 'Task Stats',
+                        personName: 'Person Name',
+                        assignmentCount: 'Assignment Count',
                         emptyPersonNameWarning: 'Name cannot be empty. A default name has been assigned.',
                         emptyFunctionWarning: 'Please ensure all teams have at least one person before adding a new task.',
                         emptyFunctionRegenWarning: 'Please ensure all teams have at least one person before generating assignments.',
@@ -1252,7 +1398,16 @@
                         copyFailed: 'Failed to copy to clipboard',
                         allAssignmentsCopied: 'All assignments copied to clipboard!',
                         singleAssignmentCopied: 'Assignment copied to clipboard!',
-                        assignmentsRegenerated: 'Assignments successfully regenerated!'
+                        assignmentsRegenerated: 'Assignments successfully regenerated!',
+                        downloadCSV: 'Download as CSV',
+                        csvDownloaded: 'CSV file downloaded successfully!',
+                        downloadConfig: 'Download configuration',
+                        configDownloaded: 'Configuration downloaded successfully!',
+                        loadConfig: 'Load configuration',
+                        configLoaded: 'Configuration loaded successfully!',
+                        configParseError: 'Failed to parse configuration file',
+                        emptyConfigError: 'The configuration file is empty or invalid',
+                        confirmConfigOverwrite: 'This will replace your current configuration. Continue?'
                     },
                     pt: {
                         appTitle: 'Distribuidor de Tarefas',
@@ -1276,6 +1431,9 @@
                         configurations: 'Configurações',
                         assignments: 'Agenda',
                         counter: 'Distribuição',
+                        taskStats: 'Estatísticas de Tarefas',
+                        personName: 'Nome da Pessoa',
+                        assignmentCount: 'Quantidade de Designações',
                         emptyPersonNameWarning: 'O nome não pode estar vazio. Um nome padrão foi atribuído.',
                         emptyFunctionWarning: 'Por favor, verifique se todas as equipes têm pelo menos uma pessoa antes de adicionar uma nova tarefa.',
                         emptyFunctionRegenWarning: 'Por favor, verifique se todas as equipes têm pelo menos uma pessoa antes de gerar designações.',
@@ -1285,7 +1443,16 @@
                         copyFailed: 'Falha ao copiar para a área de transferência',
                         allAssignmentsCopied: 'Todas as designações copiadas para a área de transferência!',
                         singleAssignmentCopied: 'Designação copiada para a área de transferência!',
-                        assignmentsRegenerated: 'Designações regeneradas com sucesso!'
+                        assignmentsRegenerated: 'Designações regeneradas com sucesso!',
+                        downloadCSV: 'Baixar como CSV',
+                        csvDownloaded: 'Arquivo CSV baixado com sucesso!',
+                        downloadConfig: 'Baixar configuração',
+                        configDownloaded: 'Configuração baixada com sucesso!',
+                        loadConfig: 'Carregar configuração',
+                        configLoaded: 'Configuração carregada com sucesso!',
+                        configParseError: 'Falha ao analisar arquivo de configuração',
+                        emptyConfigError: 'O arquivo de configuração está vazio ou inválido',
+                        confirmConfigOverwrite: 'Isso substituirá sua configuração atual. Continuar?'
                     },
                     es: {
                         appTitle: 'Asignador de Tareas',
@@ -1309,6 +1476,9 @@
                         configurations: 'Ajustes',
                         assignments: 'Calendario',
                         counter: 'Distribución',
+                        taskStats: 'Estadísticas de Tareas',
+                        personName: 'Nombre de la Persona',
+                        assignmentCount: 'Cantidad de Asignaciones',
                         emptyPersonNameWarning: 'El nombre no puede estar vacío. Se ha asignado un nombre predeterminado.',
                         emptyFunctionWarning: 'Por favor, asegúrate de que todos los equipos tengan al menos una persona antes de añadir una nueva tarea.',
                         emptyFunctionRegenWarning: 'Por favor, asegúrate de que todos los equipos tengan al menos una persona antes de generar asignaciones.',
@@ -1318,7 +1488,16 @@
                         copyFailed: 'Error al copiar al portapapeles',
                         allAssignmentsCopied: '¡Todas las asignaciones copiadas al portapapeles!',
                         singleAssignmentCopied: '¡Asignación copiada al portapapeles!',
-                        assignmentsRegenerated: '¡Asignaciones regeneradas exitosamente!'
+                        assignmentsRegenerated: '¡Asignaciones regeneradas exitosamente!',
+                        downloadCSV: 'Descargar como CSV',
+                        csvDownloaded: '¡Archivo CSV descargado exitosamente!',
+                        downloadConfig: 'Descargar configuración',
+                        configDownloaded: '¡Configuración descargada exitosamente!',
+                        loadConfig: 'Cargar configuración',
+                        configLoaded: '¡Configuración cargada exitosamente!',
+                        configParseError: 'Error al analizar el archivo de configuración',
+                        emptyConfigError: 'El archivo de configuración está vacío o no es válido',
+                        confirmConfigOverwrite: 'Esto reemplazará tu configuración actual. ¿Continuar?'
                     }
                 }
             },
@@ -1407,6 +1586,50 @@
                         }
                     }
                     return dayNames;
+                },
+                // Add taskAssignmentStats computation for the Task Stats feature
+                taskAssignmentStats() {
+                    // If there are no assignments, return empty array
+                    if (!this.assignments || this.assignments.length === 0) {
+                        return [];
+                    }
+                    
+                    // Get the sorted task keys to match with assignment indexes
+                    const sortedKeys = Object.keys(this.taskGroups).sort((a, b) => 
+                        this.taskGroups[a].length - this.taskGroups[b].length);
+                    
+                    // Create stats for each task
+                    const taskStats = [];
+                    
+                    // For each task, calculate how many times each person is assigned
+                    sortedKeys.forEach((key, taskIndex) => {
+                        const taskName = this.taskNames[key] || `Task ${key}`;
+                        const stats = {};
+                        
+                        // Count assignments for each person in this task
+                        this.assignments.forEach((assignment) => {
+                            const personName = assignment[taskIndex];
+                            if (personName) {
+                                stats[personName] = (stats[personName] || 0) + 1;
+                            }
+                        });
+                        
+                        // Sort the people by count (descending) for consistent display
+                        const sortedStats = {};
+                        Object.entries(stats)
+                            .sort((a, b) => b[1] - a[1])  // Sort by count, highest first
+                            .forEach(([person, count]) => {
+                                sortedStats[person] = count;
+                            });
+                        
+                        taskStats.push({
+                            name: taskName,
+                            stats: sortedStats,
+                            taskKey: key
+                        });
+                    });
+                    
+                    return taskStats;
                 }
             },
             watch: {
@@ -1573,6 +1796,14 @@
                     if (this.maxCount === 0) return '0%';
                     return (count / this.maxCount * 100) + '%';
                 },
+                calculateTaskStatWidth(count, task) {
+                    const totalAssignments = Object.values(task.stats).reduce((sum, value) => sum + value, 0);
+                    return totalAssignments > 0 ? (count / totalAssignments) * 100 : 0;
+                },
+                calculateTaskStatPercentage(count, task) {
+                    const totalAssignments = Object.values(task.stats).reduce((sum, value) => sum + value, 0);
+                    return totalAssignments > 0 ? ((count / totalAssignments) * 100).toFixed(1) : '0.0';
+                },
                 generateAssignments() { // Renamed from main
                     const taskGroupsCopy = JSON.parse(JSON.stringify(this.taskGroups));
                     for (const key in taskGroupsCopy) {
@@ -1674,8 +1905,9 @@
 
                     // Iterate through all assignments
                     this.assignments.forEach((assignment, index) => {
-                        const date = this.assignmentDates[index] || '';
-
+                        const date = this.assignmentDates[index] || 
+                            `${this.t('designationLabel') || 'Assignment'} ${index + 1}`;
+                        
                         // Add date with ">" prefix if available
                         if (date) {
                             allFormattedText += `> ${date}\n`;
@@ -1766,7 +1998,197 @@
                     setTimeout(() => {
                         button.innerHTML = originalHTML;
                     }, 2000);
-                }
+                },
+                downloadCSV() {
+                    // Generate CSV content
+                    let csvContent = "data:text/csv;charset=utf-8,";
+                    
+                    // Add header row with task names
+                    const sortedKeys = Object.keys(this.taskGroups).sort((a, b) =>
+                        this.taskGroups[a].length - this.taskGroups[b].length);
+                    
+                    // First column for date/assignment number, then task names
+                    let headerRow = ["Date"];
+                    sortedKeys.forEach(key => {
+                        headerRow.push(this.taskNames[key] || `Task ${key}`);
+                    });
+                    csvContent += headerRow.join(",") + "\r\n";
+                    
+                    // Add assignment rows
+                    this.assignments.forEach((assignment, index) => {
+                        // Get date or assignment number for first column
+                        const dateLabel = this.assignmentDates[index] || 
+                            `${this.t('designationLabel') || 'Assignment'} ${index + 1}`;
+                        
+                        // Start row with date/assignment number
+                        let row = ['"' + dateLabel + '"'];
+                        
+                        // Add each assigned person
+                        assignment.forEach(person => {
+                            // Wrap in quotes to handle commas in names
+                            row.push('"' + person + '"');
+                        });
+                        
+                        csvContent += row.join(",") + "\r\n";
+                    });
+                    
+                    // Create download link and trigger download
+                    const encodedUri = encodeURI(csvContent);
+                    const link = document.createElement("a");
+                    link.setAttribute("href", encodedUri);
+                    link.setAttribute("download", "task-assignments.csv");
+                    document.body.appendChild(link);
+                    
+                    // Trigger download and clean up
+                    link.click();
+                    document.body.removeChild(link);
+                    
+                    // Show success notification
+                    this.showNotification(this.t('csvDownloaded'), "info");
+                },
+                downloadConfig() {
+                    // Generate configuration text content in the required format
+                    let configContent = "";
+                    
+                    // Sort keys for consistent output
+                    const sortedKeys = Object.keys(this.taskGroups).sort((a, b) => 
+                        parseInt(a) - parseInt(b));
+                    
+                    // For each task, add header and team members
+                    sortedKeys.forEach(key => {
+                        const taskName = this.taskNames[key] || `Task ${key}`;
+                        configContent += `[${taskName}]\n`;
+                        
+                        // Add each team member on a new line
+                        this.taskGroups[key].forEach(person => {
+                            configContent += `${person}\n`;
+                        });
+                        
+                        // Add an extra line between tasks
+                        configContent += "\n";
+                    });
+                    
+                    // Create a Blob and download link
+                    const blob = new Blob([configContent], { type: "text/plain" });
+                    const link = document.createElement("a");
+                    link.href = URL.createObjectURL(blob);
+                    link.download = "config.txt";
+                    document.body.appendChild(link);
+
+                    // Trigger download and clean up
+                    link.click();
+                    document.body.removeChild(link);
+
+                    // Show success notification with translated message
+                    this.showNotification(this.t('configDownloaded'), "info");
+                },
+                triggerFileInput() {
+                    // Trigger a click on the hidden file input element
+                    this.$refs.configFileInput.click();
+                },
+                
+                handleConfigFileUpload(event) {
+                    const file = event.target.files[0];
+                    if (!file) return;
+                    
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const content = e.target.result;
+                        
+                        // Check if there are existing tasks and ask for confirmation before replacing
+                        if (Object.keys(this.taskGroups).length > 0) {
+                            if (!confirm(this.t('confirmConfigOverwrite') || 'This will replace your current configuration. Continue?')) {
+                                // User canceled the operation
+                                return;
+                            }
+                        }
+                        
+                        try {
+                            this.parseConfigFile(content);
+                        } catch (error) {
+                            console.error('Error parsing config file:', error);
+                            this.showNotification(this.t('configParseError') || 'Failed to parse config file', 'error');
+                        }
+                    };
+                    
+                    reader.readAsText(file);
+                    
+                    // Reset the file input so the same file can be uploaded again if needed
+                    event.target.value = null;
+                },
+                parseConfigFile(content) {
+                    try {
+                        // Check if content is empty or doesn't contain any task headers
+                        if (!content || !content.trim() || !content.includes('[')) {
+                            this.showNotification(this.t('emptyConfigError'), "error");
+                            return;
+                        }
+                        
+                        // Reset existing tasks and prepare for new configuration
+                        this.taskGroups = {};
+                        this.taskNames = {};
+                        this.nextTaskId = 1;  // Reset task ID counter
+                        
+                        const lines = content.split('\n');
+                        let currentTaskKey = null;
+                        let currentTaskName = null;
+                        let foundTasks = 0;
+                        let foundMembers = 0;
+                        
+                        // Process each line in the file
+                        for (let i = 0; i < lines.length; i++) {
+                            const line = lines[i].trim();
+                            
+                            // Skip empty lines except when they separate task groups
+                            if (!line && !currentTaskKey) continue;
+                            
+                            // Check if this is a task header line [Task Name]
+                            if (line.startsWith('[') && line.endsWith(']')) {
+                                // Create a new task with the extracted name
+                                currentTaskName = line.slice(1, -1);
+                                currentTaskKey = this.nextTaskId.toString();
+                                foundTasks++;
+                                
+                                // Initialize the new task with an empty team
+                                this.$set(this.taskGroups, currentTaskKey, []);
+                                this.$set(this.taskNames, currentTaskKey, currentTaskName || `Task ${this.nextTaskId}`);
+                                this.nextTaskId++;
+                            } 
+                            // If we're in a task section and have a non-empty line, it's a team member
+                            else if (currentTaskKey && line) {
+                                this.taskGroups[currentTaskKey].push(line);
+                                foundMembers++;
+                            }
+                            // Empty line after team members means we're done with this task
+                            else if (!line && currentTaskKey) {
+                                currentTaskKey = null;
+                                currentTaskName = null;
+                            }
+                        }
+                        
+                        // Validate that we found at least one task with at least one member
+                        if (foundTasks === 0 || foundMembers === 0) {
+                            this.showNotification(this.t('emptyConfigError'), "error");
+                            return;
+                        }
+                        
+                        // Clear existing assignments as they're now invalid
+                        this.assignments = [];
+                        this.assignmentStats = {};
+                        
+                        // Save the new configuration to local storage
+                        this.saveToLocalStorage();
+                        
+                        // Generate new assignments with the imported configuration
+                        this.generateAssignments();
+                        
+                        // Show success notification
+                        this.showNotification(this.t('configLoaded'), "info");
+                    } catch (error) {
+                        console.error('Error parsing configuration file:', error);
+                        this.showNotification(this.t('configParseError'), "error");
+                    }
+                },
             }
         });
     </script>
